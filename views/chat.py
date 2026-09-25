@@ -12,6 +12,7 @@ TOOL_LABELS = {
     "create_excel": "📊 Building spreadsheet", "analyze_file": "🔎 Analyzing file",
     "generate_image": "🎨 Generating image", "write_file": "💾 Writing file", "read_file": "📖 Reading file",
     "list_files": "🗂️ Listing files", "run_python": "🐍 Running code", "zip_project": "📦 Zipping project",
+    "web_search": "🌐 Searching the web", "read_webpage": "📰 Reading web page", "search_files": "🔍 Searching your files",
     "remember": "🧠 Saving to memory", "recall": "🧠 Searching memory",
 }
 
@@ -38,7 +39,7 @@ with st.sidebar:
                 session_keys()[k] = v
     agent.auto_approve = not st.toggle("Ask before running code", value=True,
                                        help="OmniPilot pauses and shows you the code before running it")
-    up = st.file_uploader("Upload a file (CSV, Excel, text...)", accept_multiple_files=False)
+    up = st.file_uploader("Upload a file (PDF, Word, Excel, CSV, text...)", accept_multiple_files=False)
     if up is not None and st.session_state.get("last_upload") != (up.name, up.size):
         agent.ctx.workspace.path(up.name).write_bytes(up.getvalue())
         st.session_state.last_upload = (up.name, up.size)
@@ -133,7 +134,7 @@ if not history:
                 "Generate an image of a futuristic Indian city at sunset, cinematic",
                 "Build a small Python to-do app with tests, run the tests, and give me a zip",
                 "Create a 5-slide presentation about the future of AI agents",
-                "Explain the difference between RAG and fine-tuning simply"]
+                "Search the web for the latest AI agent news and summarize it with sources"]
     cols = st.columns(2)
     for i, ex in enumerate(examples):
         if cols[i % 2].button(ex, use_container_width=True, key=f"ex{i}"):
