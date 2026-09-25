@@ -83,7 +83,9 @@ def run_python(code: str, workdir: Path, timeout: int = CODE_TIMEOUT_SEC) -> Run
     (workdir / ".agent_code.py").write_text(code, encoding="utf-8")
     (workdir / ".bootstrap.py").write_text(BOOTSTRAP, encoding="utf-8")
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(workdir),
-           "MPLCONFIGDIR": str(MPL_CACHE), "PYTHONIOENCODING": "utf-8", "LANG": "C.UTF-8"}
+           "MPLCONFIGDIR": str(MPL_CACHE), "PYTHONIOENCODING": "utf-8", "LANG": "C.UTF-8",
+           # one math thread: on many-core servers OpenBLAS threads would exceed the memory limit
+           "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"}
     try:
         proc = subprocess.run([sys.executable, "-I", ".bootstrap.py", ".agent_code.py"], cwd=workdir, env=env,
                               capture_output=True, text=True, timeout=timeout,
