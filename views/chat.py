@@ -1,5 +1,6 @@
 """Main chat: talk to OmniPilot, watch it work, approve risky steps, download what it makes."""
 import json
+import re
 import mimetypes
 
 import streamlit as st
@@ -67,6 +68,21 @@ def show_step(ev: dict, key: str):
         st.code(args.get("code", d["arguments"]), language="python")
 
 
+def clean(text: str) -> str:
+    """Models sometimes put HTML line breaks in Markdown tables; show them as separators."""
+    return re.sub(r"<br\s*/?>", "; ", text)
+
+
+def show_error(message: str):
+    if "rate limit" in message.lower() or "429" in message:
+        st.warning("The free AI models are busy (free-tier limit reached). Wait about a minute, "
+                   "then type **continue** and I'll pick up where I stopped.")
+        with st.expander("Details"):
+            st.code(message[:1500])
+    else:
+        st.error(message)
+
+
 def show_assistant(turn: dict, idx: int):
     for j, ev in enumerate(turn["steps"]):
         show_step(ev, f"s{idx}_{j}")
@@ -74,9 +90,9 @@ def show_assistant(turn: dict, idx: int):
     for j, f in enumerate(dict.fromkeys(files)):
         show_file(f, f"f{idx}_{j}_{f}")
     if turn.get("text"):
-        st.markdown(turn["text"])
+        st.markdown(clean(turn["text"]))
     if turn.get("error"):
-        st.error(turn["error"])
+        show_error(turn["error"])
     if turn.get("model"):
         st.caption(f"via {turn['model']}")
 
