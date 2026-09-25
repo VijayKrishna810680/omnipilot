@@ -15,6 +15,7 @@ Paid option:
 from __future__ import annotations
 
 import os
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -29,7 +30,7 @@ class Provider:
 
 PROVIDERS: dict[str, Provider] = {
     "groq": Provider("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY",
-                     ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]),
+                     ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]),
     "gemini": Provider("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY",
                        ["gemini-flash-latest"]),
     "openrouter": Provider("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
@@ -60,6 +61,24 @@ def _is_retryable(err: Exception) -> bool:
                                    "temporarily", "capacity", "connection"))
 
 
+def _retry_after(err: Exception) -> float | None:
+    """Seconds the provider asks us to wait (e.g. 'Please try again in 7.2s' or '1m3.5s')."""
+    m = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", str(err))
+    if m:
+        return int(m.group(1) or 0) * 60 + float(m.group(2))
+    return None
+
+
+def _short(err: Exception) -> str:
+    text = str(err)
+    m = re.search(r"'message': '([^']{0,200})", text)
+    return (m.group(1) if m else text.splitlines()[0])[:200]
+
+
+THINK = re.compile(r"<think>.*?</think>\s*", re.S)
+MAX_WAIT = 30  # seconds we are willing to wait for a free-tier limit to reset
+
+
 class Router:
     def __init__(self, order: list[str] | None = None, keys: dict[str, str] | None = None,
                  enable_ollama: bool | None = None):
@@ -67,6 +86,8 @@ class Router:
         self.order = order or DEFAULT_ORDER
         self.enable_ollama = bool(os.getenv("OLLAMA_URL")) if enable_ollama is None else enable_ollama
         self.last_errors: list[str] = []
+        self.cooldown: dict[tuple[str, str], float] = {}  # (provider, model) -> time it can be used again
+        self.sleep, self.now = time.sleep, time.time
 
     # ---- which providers can we use right now?
     def key_for(self, name: str) -> str | None:
@@ -86,21 +107,32 @@ class Router:
 
     # ---- call with fallback
     def chat(self, messages: list[dict], tools: list[dict] | None = None,
-             max_tokens: int = 4000) -> Reply:
+             max_tokens: int = 3000) -> Reply:
+        """Try each provider/model in order. On a rate limit, remember when that model is free again,
+        move on to the next one, and if all are busy wait (up to MAX_WAIT) for the soonest one."""
         self.last_errors = []
         candidates = [(p, m) for p in self.available() for m in PROVIDERS[p].models]
         if not candidates:
             raise NoProviderError("No AI provider configured. Add a free GROQ_API_KEY or GEMINI_API_KEY.")
-        for attempt_round in range(2):  # second round after a short pause (rate limits reset quickly)
+        for _round in range(3):
+            waits = []
             for provider, model in candidates:
+                ready_at = self.cooldown.get((provider, model), 0)
+                if ready_at > self.now():
+                    waits.append(ready_at - self.now())
+                    continue
                 try:
                     return self._call(provider, model, messages, tools, max_tokens)
                 except Exception as e:  # noqa: BLE001 -- we record and fall through
-                    self.last_errors.append(f"{provider}/{model}: {str(e).splitlines()[0][:160]}")
-                    if not _is_retryable(e):
-                        continue
-            time.sleep(3)
-        raise NoProviderError("All providers failed: " + " | ".join(self.last_errors[-4:]))
+                    self.last_errors.append(f"{provider}/{model}: {_short(e)}")
+                    if _is_retryable(e):
+                        wait = _retry_after(e) or 5.0
+                        self.cooldown[(provider, model)] = self.now() + wait
+                        waits.append(wait)
+            if not waits or min(waits) > MAX_WAIT:
+                break
+            self.sleep(min(waits) + 0.5)
+        raise NoProviderError("All providers failed: " + " | ".join(self.last_errors[-3:]))
 
     def _call(self, provider: str, model: str, messages, tools, max_tokens) -> Reply:
         from openai import OpenAI
@@ -116,4 +148,4 @@ class Router:
         msg = resp.choices[0].message
         calls = [{"id": c.id, "name": c.function.name, "arguments": c.function.arguments or "{}"}
                  for c in (msg.tool_calls or [])]
-        return Reply(content=msg.content or "", tool_calls=calls, provider=provider, model=model)
+        return Reply(content=THINK.sub("", msg.content or ""), tool_calls=calls, provider=provider, model=model)

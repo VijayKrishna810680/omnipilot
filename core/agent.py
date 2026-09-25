@@ -7,6 +7,7 @@ exactly where it stopped. Every step is emitted as an event so the UI can show i
 """
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass, field
 from datetime import date
@@ -39,10 +40,39 @@ Guidelines:
 - When the user shares a lasting preference or fact about themselves, call remember.
 - After using tools, give a short summary of what you made and the file names. Never invent results.
 - If a tool fails, read the error, fix the cause and try again (max 2 retries), or explain the problem.
+- Code runs in a sandbox with no network and no subprocess. To run tests use pytest in-process:
+  run_python("import pytest; raise SystemExit(pytest.main(['-q', '-p', 'no:cacheprovider', 'folder']))").
+- Excel: data rows start at row 2 (row 1 = headers). Use total_row=true for totals and "{{row}}" in
+  per-row formulas (e.g. "=B{{row}}-C{{row}}") so every reference is correct.
+- Write answers in Markdown only. Never use HTML tags such as <br>.
 
 What you remember about the user:
 {memories}
 """
+
+
+def _trim(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit] + f"... [{len(text) - limit} chars trimmed]"
+
+
+def _compact(m: dict) -> dict:
+    """Shorter copy of an old message: tool outputs and long tool arguments (e.g. file contents) trimmed."""
+    if m["role"] == "tool":
+        return {**m, "content": _trim(m["content"], 400)}
+    if m.get("tool_calls"):
+        calls = []
+        for c in m["tool_calls"]:
+            try:
+                args = json.loads(c["function"]["arguments"] or "{}")
+                args = {k: _trim(v, 200) if isinstance(v, str) else v for k, v in args.items()}
+                if len(json.dumps(args)) > 1500:
+                    args = {k: v for k, v in args.items() if isinstance(v, (str, int, float, bool))}
+                arguments = json.dumps(args)
+            except (ValueError, TypeError):
+                arguments = "{}"
+            calls.append({**c, "function": {**c["function"], "arguments": arguments}})
+        return {**m, "tool_calls": calls}
+    return m
 
 
 @dataclass
@@ -98,11 +128,24 @@ class Agent:
         return {"role": "system", "content": SYSTEM_PROMPT.format(
             today=date.today().isoformat(), memories="\n".join(f"- {m}" for m in mem) or "(nothing yet)")}
 
-    def _window(self, max_messages: int = 40) -> list[dict]:
-        """Keep long chats working: send the most recent messages, starting at a user turn."""
-        msgs = self.messages[-max_messages:]
+    def _window(self, max_messages: int = 40, budget_chars: int = 14000, keep_full: int = 6) -> list[dict]:
+        """Keep long chats working on free-tier limits: send recent messages only, shorten old tool
+        outputs and old file contents, and stay under a size budget. Always starts at a user turn,
+        and never drops the current user request."""
+        def size(ms):
+            return sum(len(json.dumps(m)) for m in ms)
+
+        n = len(self.messages)
+        msgs = [_compact(m) if i < n - keep_full else m for i, m in enumerate(self.messages)][-max_messages:]
         while msgs and msgs[0]["role"] != "user":
             msgs = msgs[1:]
+        while size(msgs) > budget_chars:
+            later_users = [i for i, m in enumerate(msgs) if m["role"] == "user" and i > 0]
+            if not later_users:
+                break
+            msgs = msgs[later_users[0]:]       # drop the oldest whole turn
+        if size(msgs) > budget_chars:          # the current task alone is big: trim it too
+            msgs = [_compact(m) for m in msgs[:-2]] + msgs[-2:]
         return [self._system()] + msgs
 
     def _loop(self) -> Iterator[Event]:

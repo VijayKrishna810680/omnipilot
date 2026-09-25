@@ -36,7 +36,7 @@ BOOTSTRAP = textwrap.dedent(r'''
             writing = any(c in str(mode) for c in "wax+") or (isinstance(flags, int) and flags & (os.O_WRONLY | os.O_RDWR | os.O_CREAT))
             if writing:
                 real = os.path.realpath(os.fsdecode(path))
-                if not (real == WORK or real.startswith(WORK + os.sep)):
+                if not (real == WORK or real.startswith(WORK + os.sep) or real == "/dev/null"):
                     raise PermissionError(f"Blocked for safety: writing outside the workspace ({path})")
         if event in ("os.remove", "os.unlink", "os.rename", "os.rmdir") and args:
             real = os.path.realpath(os.fsdecode(args[0]))
@@ -92,6 +92,7 @@ def run_python(code: str, workdir: Path, timeout: int = CODE_TIMEOUT_SEC) -> Run
     except subprocess.TimeoutExpired as e:
         out = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
         err, ok, timed_out = f"Stopped: code ran longer than {timeout}s", False, True
-    after = {p: p.stat().st_mtime_ns for p in workdir.rglob("*") if p.is_file() and not p.name.startswith(".")}
+    after = {p: p.stat().st_mtime_ns for p in workdir.rglob("*") if p.is_file() and not p.name.startswith(".")
+             and "__pycache__" not in p.parts}
     new = sorted(str(p.relative_to(workdir)) for p, t in after.items() if before.get(p) != t)
     return RunResult(ok, out[-8000:], err[-4000:], new, timed_out)
