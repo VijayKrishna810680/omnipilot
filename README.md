@@ -40,10 +40,10 @@ You ──► Chat UI (Streamlit)
 ```
 
 - **Agent loop:** the model decides which tools to call. OmniPilot runs them, shows the results back to the model, and repeats until the task is done (up to 12 steps).
-- **Model router:** tries each configured provider and model in order. On a rate limit or error it moves to the next one, so free-tier chat keeps working.
+- **Model router:** tries each configured provider and model in order. On a rate limit it remembers when that model is free again, moves to the next one, and if all are busy it waits the few seconds the provider asks for, so free-tier chat keeps working.
 - **Approvals:** risky tools (running code) **pause the agent** and show you the code. The agent resumes exactly where it stopped after you approve or deny.
 - **Memory:** facts are saved per user and the relevant ones are added to every conversation. Relevance uses BM25 ranking, the classic search-engine formula.
-- **Long chats:** a sliding context window keeps conversations going without hitting model limits.
+- **Long chats:** a sliding context window with a size budget trims old tool outputs and file contents, so long conversations stay inside free-tier token limits.
 
 ## Safety
 
@@ -63,8 +63,9 @@ git clone https://github.com/VijayKrishna810680/omnipilot.git
 cd omnipilot
 pip install -r requirements.txt
 cp .env.example .env        # add a free GROQ_API_KEY (console.groq.com, no credit card)
+                            # and a free POLLINATIONS_TOKEN for images (enter.pollinations.ai)
 streamlit run app.py
-pytest -q                   # 18 tests
+pytest -q                   # 24 tests
 ```
 
 **More free usage:** add several free keys (Groq, Gemini, OpenRouter). The router switches between them automatically. For **no limits at all**, run models on your own computer with [Ollama](https://ollama.com) and set `OLLAMA_URL`.
@@ -84,7 +85,7 @@ pytest -q                   # 18 tests
 | `core/workspace.py` | Per-user file workspace with path safety |
 | `core/activity.py` | Activity log (model and tool calls) |
 | `views/` | Streamlit pages: Chat, My files, Memory, Activity |
-| `tests/` | 18 tests using a scripted model: every tool, approvals, sandbox attacks, router fallback |
+| `tests/` | 24 tests using a scripted model: every tool, approvals, sandbox attacks, router fallback and waits, context trimming |
 
 ## Roadmap
 
