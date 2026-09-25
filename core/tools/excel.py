@@ -57,6 +57,7 @@ def create_excel(ctx, filename, sheets):
             cell.fill = PatternFill("solid", fgColor="2E6DA4")
             cell.alignment = Alignment(horizontal="center")
         rows = spec.get("rows", [])
+        totals = []
         for i, r in enumerate(rows, start=2):
             ws.append([_coerce(v, i) for v in r])
         last_data = ws.max_row
@@ -67,6 +68,8 @@ def create_excel(ctx, filename, sheets):
                 if any(isinstance(v, (int, float)) or (isinstance(v, str) and v.startswith("=")) for v in values):
                     letter = get_column_letter(c)
                     total[c - 1] = f"=SUM({letter}2:{letter}{last_data})"
+                    if all(isinstance(v, (int, float)) or v is None for v in values):
+                        totals.append(f"{cols[c - 1]}={sum(v or 0 for v in values):,.2f}".replace(".00", ""))
             ws.append(total)
             for c in range(1, len(cols) + 1):
                 ws.cell(row=ws.max_row, column=c).font = Font(bold=True)
@@ -88,7 +91,7 @@ def create_excel(ctx, filename, sheets):
             ws.add_chart(chart, f"{get_column_letter(len(cols) + 2)}2")
         info = f"{ws.title}: data in rows 2-{last_data}, {len(cols)} columns"
         if ws.max_row > last_data:
-            info += f", Total in row {ws.max_row}"
+            info += f", Total in row {ws.max_row}" + (f" (totals: {', '.join(totals)})" if totals else "")
         summary.append(info + (f", {kind} chart" if chart_spec else ""))
     path = ctx.workspace.path(safe_filename(filename, ".xlsx"))
     wb.save(path)
