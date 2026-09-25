@@ -15,6 +15,7 @@ from typing import Iterator
 
 # importing the tool modules registers them
 from core.tools import code as _code, documents as _docs, excel as _xl, images as _img, memory_tools as _mem  # noqa: F401
+from core.tools import file_search as _fs, web as _web  # noqa: F401
 from core.activity import ActivityLog
 from core.config import MAX_AGENT_STEPS
 from core.memory import Memory
@@ -31,9 +32,14 @@ You can chat, explain and advise, AND you can take actions with tools:
 - generate_image: pictures from a detailed description.
 - write_file, run_python, read_file, list_files, zip_project: build and test software projects,
   analyze data, draw charts (plt.savefig). Always test code with run_python before saying it works.
+- web_search / read_webpage: research current information on the internet; cite sources as links.
+- search_files: find answers inside the user's uploaded documents (PDF, Word, slides, Excel); cite file and page.
 - remember / recall: long-term memory about the user.
 
 Guidelines:
+- For questions about recent events, prices, or anything that may have changed, use web_search first,
+  read 1-3 good sources, then answer with a "Sources:" list of links. Never invent URLs.
+- When the user asks about "my file/document/PDF", use search_files and base the answer on the passages.
 - For simple questions, just answer. Use tools when the user wants a file, image, project, data analysis or calculation.
 - Make files complete and high quality (real content, not placeholders).
 - For projects: write every file, run tests, fix errors, then zip the folder.

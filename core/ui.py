@@ -12,7 +12,7 @@ from core.memory import Memory
 from core.router import PROVIDERS, Router
 from core.workspace import Workspace
 
-KEY_NAMES = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "HF_TOKEN", "POLLINATIONS_TOKEN"]
+KEY_NAMES = ["GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY", "HF_TOKEN", "POLLINATIONS_TOKEN", "TAVILY_API_KEY"]
 
 
 def load_secrets() -> None:
