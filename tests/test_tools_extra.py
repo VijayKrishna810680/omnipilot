@@ -17,6 +17,7 @@ def test_excel_total_row_and_row_formulas(env):
         "total_row": True, "chart": {"type": "pie", "label_column": 1, "value_columns": [2]}}]}
     res = run_tool("create_excel", json.dumps(args), Context(ws, mem))
     assert res.ok and "Total in row 5" in res.output
+    assert "Planned=2,300" in res.output and "Actual=2,150" in res.output
     sheet = load_workbook(ws.path("budget.xlsx"))["Budget"]
     assert sheet["D3"].value == "=B3-C3"
     assert [sheet.cell(row=5, column=c).value for c in range(1, 5)] == ["Total", "=SUM(B2:B4)", "=SUM(C2:C4)", "=SUM(D2:D4)"]
