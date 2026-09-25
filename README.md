@@ -65,7 +65,7 @@ pip install -r requirements.txt
 cp .env.example .env        # add a free GROQ_API_KEY (console.groq.com, no credit card)
                             # and a free POLLINATIONS_TOKEN for images (enter.pollinations.ai)
 streamlit run app.py
-pytest -q                   # 24 tests
+pytest -q                   # 25 tests
 ```
 
 **More free usage:** add several free keys (Groq, Gemini, OpenRouter). The router switches between them automatically. For **no limits at all**, run models on your own computer with [Ollama](https://ollama.com) and set `OLLAMA_URL`.
@@ -85,7 +85,7 @@ pytest -q                   # 24 tests
 | `core/workspace.py` | Per-user file workspace with path safety |
 | `core/activity.py` | Activity log (model and tool calls) |
 | `views/` | Streamlit pages: Chat, My files, Memory, Activity |
-| `tests/` | 24 tests using a scripted model: every tool, approvals, sandbox attacks, router fallback and waits, context trimming |
+| `tests/` | 25 tests using a scripted model: every tool, approvals, sandbox attacks, router fallback and waits, context trimming |
 
 ## Roadmap
 
