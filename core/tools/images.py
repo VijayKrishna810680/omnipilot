@@ -9,22 +9,25 @@ from core.workspace import safe_filename
 
 
 def _pollinations(prompt, width, height, seed):
+    """Pollinations: free 'flux' model. Needs a free key from enter.pollinations.ai (sign in with GitHub)."""
     import requests
+    token = os.getenv("POLLINATIONS_TOKEN") or os.getenv("POLLINATIONS_API_KEY")
     q = urllib.parse.quote(prompt[:900])
-    params = {"width": width, "height": height, "nologo": "true", "seed": seed}
-    headers = {}
-    if os.getenv("POLLINATIONS_TOKEN"):
-        headers["Authorization"] = f"Bearer {os.getenv('POLLINATIONS_TOKEN')}"
-    last = None
-    for url in (f"https://image.pollinations.ai/prompt/{q}", f"https://gen.pollinations.ai/image/{q}"):
+    params = {"model": os.getenv("POLLINATIONS_MODEL", "flux"), "width": width, "height": height,
+              "nologo": "true", "seed": seed}
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    errors = []
+    urls = [f"https://gen.pollinations.ai/image/{q}"] + ([] if token else [f"https://image.pollinations.ai/prompt/{q}"])
+    for url in urls:
         try:
             r = requests.get(url, params=params, headers=headers, timeout=120)
             if r.ok and r.headers.get("content-type", "").startswith("image/"):
                 return r.content
-            last = f"{url.split('/')[2]} HTTP {r.status_code}"
+            errors.append(f"{url.split('/')[2]} HTTP {r.status_code}")
         except Exception as e:  # noqa: BLE001
-            last = f"{url.split('/')[2]}: {e}"
-    raise RuntimeError(f"Pollinations failed ({last})")
+            errors.append(f"{url.split('/')[2]}: {e}")
+    hint = "" if token else " - add a free POLLINATIONS_TOKEN from enter.pollinations.ai"
+    raise RuntimeError(", ".join(errors) + hint)
 
 
 def _huggingface(prompt, width, height, seed):
