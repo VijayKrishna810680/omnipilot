@@ -33,3 +33,8 @@ def test_timeout(tmp_path):
 def test_normal_code_and_new_files(tmp_path):
     r = run_python("open('a.txt','w').write('x'); print(6*7)", tmp_path, timeout=20)
     assert r.ok and r.stdout.strip() == "42" and r.new_files == ["a.txt"]
+
+
+def test_single_math_thread(tmp_path):
+    r = run_python("import os; print(os.environ['OPENBLAS_NUM_THREADS'], os.environ['OMP_NUM_THREADS'])", tmp_path)
+    assert r.ok and r.stdout.split() == ["1", "1"]
